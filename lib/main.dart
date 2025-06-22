@@ -20,7 +20,7 @@ void main() async {     // Note, I had to make this async because of await for m
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This @override is a Java feature (or really OOP feature as I remember this in C# .Net 325 class as well) to override extended function
+  // This @override is a feature (or really OOP feature as I remember this in C# .Net 325 class as well) to override extended function
   // from the StatelessWidget class!
   // Returns a MaterialApp configured with a title, theme, and home screen.
   // To build and return the main root UI structure of the app.
@@ -51,6 +51,93 @@ class MemoryLogScreen extends StatefulWidget {
 
 // Ok, let's get to the home page
 class _MemoryLogScreenState extends State<MemoryLogScreen> {
+
+  // This will be for deleting a memory with confirmation to delete
+  Future<void> _deleteMemory(BuildContext context, Box<MemoryEntry> box, dynamic key) async {
+    bool? deleteConfirmed = await showDialog<bool>( // Had to set it to optional ? in case it returned nil, was causing me headaches
+      context: context,
+      builder: (BuildContext dialogContext) {
+
+        return AlertDialog(
+          title: const Text('Confirm Delete'),
+          content: const Text('Are you sure you want to delete this memory? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false); // Return false
+              },
+            ),
+
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true); // Return true
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    // Ok, action confirmed, we actually delete it now
+    if (deleteConfirmed == true) {
+      await box.delete(key);
+      // Note: ValueListenableBuilder will auto-update the UI on deleting
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text('Memory deleted')),
+         );
+      }
+    }
+  }
+
+  void _showMemoryDetails(BuildContext context, MemoryEntry memory) {
+    // print("Tapped on memory: ${memory.caption}"); -- Need t o figure out how to add an alert
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+
+        return AlertDialog(
+          title: Text(memory.caption),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+
+                if (memory.imagePath != null && memory.imagePath!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10.0),
+                    child: Image.file(File(memory.imagePath!)),
+                  ),
+                Text('Date: ${DateFormat('EEEE, MMMM d, yyyy').format(memory.date)}'),
+                const SizedBox(height: 5),
+                Text('Feeling: ${memory.feeling}'),
+                const SizedBox(height: 10),
+
+                if (memory.textEntry != null && memory.textEntry!.isNotEmpty)
+                  Text('Details:\n${memory.textEntry}'),
+
+                if (memory.textEntry == null || memory.textEntry!.isEmpty)
+                  const Text('No additional details.'),
+              ],
+            ),
+          ),
+
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Close'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 
   // For the visual elements of the home page and scaffolding
   @override
@@ -84,7 +171,7 @@ class _MemoryLogScreenState extends State<MemoryLogScreen> {
 
           // Displaying memories in a list, newest first
           List<MemoryEntry> memories = box.values.toList();
-          memories.sort((a, b) => b.date.compareTo(a.date)); // To sortNewest first
+          memories.sort((a, b) => b.date.compareTo(a.date)); // To sort the newest first
 
           // All the cards
           return ListView.builder(
@@ -92,76 +179,109 @@ class _MemoryLogScreenState extends State<MemoryLogScreen> {
             itemCount: memories.length,
             itemBuilder: (context, index) {
               final memory = memories[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 8.0),
-                elevation: 3,
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
+              final dynamic memoryKey = memory.key; // Getting the hivekey to access
 
-                      // Display Image
-                      if (memory.imagePath != null && memory.imagePath!.isNotEmpty)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8.0),
-                          child: Image.file(
-                            File(memory.imagePath!),
-                            width: double.infinity, // The full width of card (equivalent to 100% - weird way to implement lol)
-                            height: 200,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                height: 100,
-                                color: Colors.grey[300],
-                                alignment: Alignment.center,
-                                child: const Text('Error loading image', style: TextStyle(color: Colors.red)),
-                              );
-                            },
-                          ),
+              return InkWell( // Making the whole card tappable
+                onTap: () {
+                  _showMemoryDetails(context, memory); // Call the detail view method
+                },
+
+                child: Card(
+                  margin: const EdgeInsets.symmetric(vertical: 8.0),
+                  elevation: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+
+                        // This is the row where I add the delete button AND display main info
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded( // Allows text to take available space
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    DateFormat('EEEE, MMMM d, yyyy').format(memory.date),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    memory.caption,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Feeling: ${memory.feeling}',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            IconButton( // Delete button
+                              icon: Icon(Icons.delete_outline, color: Colors.red[700]),
+                              tooltip: 'Delete Memory',
+                              onPressed: () {
+                                _deleteMemory(context, box, memoryKey);
+                              },
+                            ),
+                          ],
                         ),
-                      if (memory.imagePath != null && memory.imagePath!.isNotEmpty)
                         const SizedBox(height: 10),
+                        // Display Image (if it exists)
+                        if (memory.imagePath != null && memory.imagePath!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8.0),
+                              child: Image.file(
+                                File(memory.imagePath!),
+                                width: double.infinity, // The full width of card (like 100%)
+                                height: 200,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
 
-                      Text(
-                        DateFormat('EEEE, MMMM d, yyyy').format(memory.date),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        memory.caption,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Feeling: ${memory.feeling}',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontStyle: FontStyle.italic,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                      if (memory.textEntry != null && memory.textEntry!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Text(
-                            memory.textEntry!,
-                            style: const TextStyle(fontSize: 14),
-                            maxLines: 3, // The 3 lines is to show a short preview of the text.
-                            overflow: TextOverflow.ellipsis,
+                                  return Container(
+                                    height: 100,
+                                    color: Colors.grey[300],
+                                    alignment: Alignment.center,
+                                    child: const Text('Error loading image', style: TextStyle(color: Colors.red)),
+                                  );
+                                },
+                              ),
+                            ),
                           ),
-                        ),
-                      // Might add "tap to View" here if I have time
-                    ],
+
+                        // Text Entry Preview
+                        if (memory.textEntry != null && memory.textEntry!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0), // Add some space if there was an image
+                            child: Text(
+                              memory.textEntry!,
+                              style: const TextStyle(fontSize: 14),
+                              maxLines: 3, // The 3 lines is to show a short preview of the text.
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
+                )
               );
             },
           );
@@ -171,17 +291,12 @@ class _MemoryLogScreenState extends State<MemoryLogScreen> {
       // Add a new memory button
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // ScaffoldMessenger.of(context).showSnackBar(
-          //   const SnackBar(content: Text('Create a New Memory')),
-          // );
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const CreateMemoryScreen()),
           );
         },
-
-        // This is so I can click the add a photo b utton which opens the add a new memory
-        tooltip: 'Create a Memory',
+        tooltip: 'Create a Memory', // This is so I can click the add a photo button which opens the add a new memory
         child: const Icon(Icons.add_photo_alternate_outlined),
       ),
     );
