@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import 'package:path/path.dart' as p; // The p is for p.basename and p.join
+import 'package:path/path.dart' as p; // The p is for p.basename and p.join for storing the image
 
 class CreateMemoryScreen extends StatefulWidget {
   const CreateMemoryScreen({super.key});
@@ -43,81 +43,91 @@ class _CreateMemoryScreenState extends State<CreateMemoryScreen> {
   // PERMISSIONS LOGIC //
   ///////////////////////
 
-  // Permissions for the mobile device to be asked, this is how
-  // you iimplement the request
-  Future<void> _requestPermission(Permission permission) async {
-    if (await permission.isDenied) {
-      await permission.request();
-    }
-  }
-
   Future<void> _pickImage(ImageSource source) async {
-  Permission neededPermission;
-  if (source == ImageSource.camera) {
-    neededPermission = Permission.camera;
-  } else {
+    Permission neededPermission;
 
-    // Built in logic so this can deploy on Apple or Android
-    if (Platform.isAndroid) {
-
-        // NOTE -- for Android 12 and lower I would need to use Permission.storage according to API documentation.
-        // I am assuming a modern usage of 13+ (15/16 is most recent as of June 2025), as it has been over 3 years since 13 released.
-      neededPermission = Permission.photos;
-    } else if (Platform.isIOS) {
-      neededPermission = Permission.photos; // iOS always uses Permission.photos
+    if (source == ImageSource.camera) {
+      neededPermission = Permission.camera;
     } else {
-      // In case this app is side-loaded on some other platform, I am just gonna add this short message at bottom (snackbar)
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Platform not supported for image picking.'))
-      );
-      return;
-    }
-  }
 
-  await _requestPermission(neededPermission);
+      // Built in logic so this can deploy on Apple or Android
+      if (Platform.isAndroid) {
 
-  final permissionStatus = await neededPermission.status;
-  if (permissionStatus.isGranted) {
-    try {
-      final XFile? pickedFile = await ImagePicker().pickImage(source: source, imageQuality: 80); // Slightly adjust quality to force reformat
-      if (pickedFile != null) {
-
-        // Copying the image to the phone's local app directory
-        final Directory appDir = await getApplicationDocumentsDirectory();
-        final String fileName = p.basename(pickedFile.path);
-        final String newPath = p.join(appDir.path, fileName);
-
-        final File copiedImage = await File(pickedFile.path).copy(newPath);
-
-        setState(() {
-          _selectedImageFile = copiedImage; // This is for the file preview
-          _savedImageFilePath = copiedImage.path; // This is for actually saving it to Hive DB
-        });
+          // NOTE -- for Android 12 and lower I would need to use Permission.storage according to API documentation.
+          // I am assuming a modern usage of 13+ (15/16 is most recent as of June 2025), as it has been over 3 years since 13 released.
+        neededPermission = Permission.photos;
+      } else if (Platform.isIOS) {
+        neededPermission = Permission.photos; // iOS always uses Permission.photos - FUTURE ADD, don't need for now.
+      } else {
+        // In case this app is side-loaded on some other platform, I am just gonna add this short message at bottom (snackbar)
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Platform not supported for selecting an image.'))
+          );
+        }
+        return;
       }
-    } catch (e) {
+    }
+
+    // Ok, now we request the permission
+    var status = await neededPermission.status;
+
+    if (status.isDenied) {
+      // If never easked for permission, OR user denied it before (app cannot work without this permission so ask every time)
+      status = await neededPermission.request();
+    }
+
+    if (status.isGranted) {
+      try {
+        final XFile? pickedFile = await ImagePicker().pickImage(source: source, imageQuality: 80); // Slightly adjust quality to force reformat
+        if (pickedFile != null) {
+
+          // Copying the image to the phone's local app directory
+          final Directory appDir = await getApplicationDocumentsDirectory();
+          final String fileName = p.basename(pickedFile.path);
+          final String newPath = p.join(appDir.path, fileName);
+          final File copiedImage = await File(pickedFile.path).copy(newPath);
+
+          setState(() {
+            _selectedImageFile = copiedImage; // This is for the file preview
+            _savedImageFilePath = copiedImage.path; // This is for actually saving it to Hive DB
+          });
+
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error choosing image: $e')),
+          );
+        }
+      }
+    } else if (status.isPermanentlyDenied) {
+      // The user has permanently denied the permission.
+      // Open app settings to allow the user to grant the permission manually.
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error choosing image: $e')),
+          const SnackBar(content: Text('Gallery access permanently denied. Please enable in app settings.')),
+        );
+      }
+      await openAppSettings(); // API is found in 'permission_handler'
+    } else if (status.isDenied) { // Could be as simple as parental controls.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gallery permission denied. Cannot select an image.')),
         );
       }
     }
-  } else {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Permission denied. Unable to select image.')),
-      );
-    }
   }
-}
 
-////////////////////
-// MEMORY STORAGE //
-////////////////////
+  ////////////////////
+  // MEMORY STORAGE //
+  ////////////////////
 
-// Using the Hive Box to store the memory locally!!
+  // Using the Hive Box to store the memory locally!!
   Future<void> _saveMemory() async {
     if (_formKey.currentState!.validate()) {  // This is a validation to ensure form is good
 
+      // constructor
       final newMemory = MemoryEntry(
         date: DateTime.now(),
         caption: _captionController.text,
@@ -125,7 +135,7 @@ class _CreateMemoryScreenState extends State<CreateMemoryScreen> {
         textEntry: _textEntryController.text.isNotEmpty
             ? _textEntryController.text
             : null,
-        // AUDIO PATH I"LL PLACE HERE, STILL NEED TO FIGURE IT OUT.
+        imagePath: _savedImageFilePath,
       );
 
       // Getting this to work is simple, but was kind of tricky to learn:

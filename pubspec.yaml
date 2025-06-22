@@ -28,6 +28,8 @@ dependencies:
   # For date/time formatting
   intl: ^0.20.2
 
+  path: ^1.9.1
+
   # The following adds the Cupertino Icons font.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
