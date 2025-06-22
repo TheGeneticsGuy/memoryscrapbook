@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart'; // This is for local storage
+import 'package:memoryscrapbook/models/memory_entry.dart';
+import 'package:memoryscrapbook/screens/create_memory_screen.dart';
 
 void main() async {     // Note, I had to make this async because of await for memory retrieval
   WidgetsFlutterBinding.ensureInitialized();  // Built-in feature to ensure that the plgin servers are initialized
   await Hive.initFlutter();                   // Not going to run the app until the Hive (data) is loaded
+  Hive.registerAdapter(MemoryEntryAdapter());
+
+  // Ok, now let's run the app - code below
   runApp(const MyApp());
 }
 
@@ -22,7 +27,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MemoryLogScreen(title: 'Memory Scrapbook Home'), // Just the home page placeholder
+      home: const MemoryLogScreen(title: 'Memory Scrapbook'), // Just the home page placeholder
     );
   }
 }
@@ -42,33 +47,36 @@ class MemoryLogScreen extends StatefulWidget {
 // Ok, let's get to the home page
 class _MemoryLogScreenState extends State<MemoryLogScreen> {
 
-  // Regarding the visual elements of the home page and scaffolding
+  // For the visual elements of the home page and scaffolding
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,    // Neat trick to get complimentary color
         title: Text(widget.title),
       ),
 
       // Text of the body on the home page
       body: const Center(
         child: Text(
-          'Welcome to your Memory Scrapbook!',
+          'Welcome! Your memories will appear here.',
           textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 16),
         ),
       ),
 
-      // Add a new memory button - Gonna keep it at the bottom
+      // Add a new memory button
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Create a New Memory')),
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const CreateMemoryScreen()),
           );
         },
 
         // This is so I can click the add a photo b utton which opens the add a new memory
         tooltip: 'Create a Memory',
-        child: const Icon(Icons.add_a_photo),
+        child: const Icon(Icons.add_photo_alternate_outlined),
       ),
     );
   }
