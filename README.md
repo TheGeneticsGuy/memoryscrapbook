@@ -19,7 +19,7 @@ The Memory Scrapbook is a mobile application designed for users to be able to cr
 
 The main reason I wrote this app was really to get my feet wet in the world of app development. I've never actually built an app before, so I considered many of the recommended ideas, and recommendations online of others, and kind of made an amalgamation of many other ideas into this one, a memory scrapbook. It seems fun, and it seems like something I would actually use. In addition, I really wanted to begin learning some of the mobile app design best practices. I learned how to implement persissions, access certain features of the phone, and it really was a lot easier than I thought it was going to be. I look forward to eventually deploying a cross-platform kind of app, and Flutter/Dart seems like a great way to go.
 
-[Software Demo Video](http://youtube.link.goes.here)
+[Software Demo Video](https://youtu.be/E-sKblLfrsk)
 
 # Local Data Storage (Database)
 
